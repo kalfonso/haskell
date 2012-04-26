@@ -1,0 +1,5 @@
+import Test.QuickCheck
+
+prop_single_words_removed = forAll listOfSingleWords $ \ws -> 
+  findAnagrams ws == []
+  

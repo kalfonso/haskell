@@ -1,0 +1,5 @@
+import Test.QuickCheck
+
+data Bill = Invoice
+
+-- Define parser for different invoice files

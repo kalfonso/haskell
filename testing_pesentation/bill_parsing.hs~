@@ -1,0 +1,11 @@
+import Control.Monad.Error
+import Test.QuickCheck
+
+data Bill = Invoice {issueDate :: String, number :: String} 
+            | BIF {issueDate :: String, number :: String} 
+            | BEF {ban :: String, number :: String}
+            deriving Show
+
+-- Define parser for different invoice files
+parseBillFileName :: String -> Either String Bill
+parseBillFileName fileName = Left "Not implemented yet!"
