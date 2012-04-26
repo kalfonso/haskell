@@ -5,10 +5,25 @@ rember _ [] = []
 rember a (x:xs) | a == x = xs
                 | otherwise = x:(rember a xs)
                               
+rember' :: Eq a => a -> [a] -> [a]
+rember' _ [] = []
+rember' a (x:xs) | a == x = rember a xs
+                 | otherwise = x:(rember a xs)
+                              
 prop_remove_doesnt_exist = forAll lists $ \xs ->
                            forAll (elementsNotIn xs) $ \x -> 
                            rember x xs == xs
                            
+prop_delete :: Int -> [Int] -> Bool
+prop_delete x xs = not $ x `elem` (rember x xs)
+
+prop_delete' :: Int -> [Int] -> Bool
+prop_delete' x xs = count x (rember x xs) <= count x xs
+
+prop_delete_contains :: Int -> [Int] -> Property
+prop_delete_contains x xs = (count x xs == 1) ==> 
+                            count x (rember x xs) == count x xs - 1
+
 prop_remove_existing = forAll lists $ \xs ->
                        forAll (elementsIn xs) $ \x ->
                        (count x xs) - 1 == count x (rember x xs) 
