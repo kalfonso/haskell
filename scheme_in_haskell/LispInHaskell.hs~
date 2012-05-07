@@ -1,5 +1,0 @@
-import Text.Parsec.Prim
-import Text.Parsec.Combinator
-
-letters :: GenParser Char st String
-letters = many1 lower
