@@ -1,0 +1,3 @@
+import Tes.QuickCheck
+
+data Tree a = ()

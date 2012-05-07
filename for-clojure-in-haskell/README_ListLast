@@ -1,0 +1,66 @@
+Initially when solving the listLast function I made a mistake by defining:
+
+listLast [x] = x
+listLast (x:xs) = listLast xs
+
+Using QuickCheck we can define a property that should apply to this function:
+
+1- The result of applying listLast to the list of applying listlast should equal listLast of that list. This can be expressed in QuickCheck:
+ -- Idempotency property (sort of as listLast return an element and not a list)
+prop_listLast xs = listLast [listLast xs] == listLast xs
+ 
+After running QuickCheck in GHCi we get:
+
+Haskell> quickCheck prop_listLast
+*** Failed! Exception: 'ListLast.hs:(2,1)-(3,29): Non-exhaustive patterns in function listLast' (after 1 test):  
+[]
+
+
+QuickCheck generates random tests for this property and after one test using the empty list [], it found that it cannot determine the last element. It tells me that I forgot to define this function for an empty list. So I went ahead and looked at the way Prelude defines this function and added the corresponding error line as this function is not defined for the empty list:
+
+listLast [] = error "Cannot determine last element for an empty list"
+listLast [x] = x
+listLast (x:xs) = listLast xs
+
+Running QuickCheck again we get:
+Haskell> quickCheck prop_listLast
+*** Failed! Exception: 'Cannot determine last element for an empty list' (after 1 test):  
+[]
+
+The test for an empty list fails this time due to our program throwing an exception for an empty list. This function still works fine however it will fail for an empty list. Prelude define function "last :: [a] -> a" that also fails with an exception for an empty list.
+
+What this means is that this is not a "total function": http://en.wikipedia.org/wiki/Partial_function. That means that listLast is not defined for the empty list.
+
+QuickCheck allows to specify this type of constraints so I created the property listLastNotNull:
+
+prop_listLastNotNull xs = not (null xs) ==> listLast [listLast xs] == listLast xs
+
+With this we get:
+
+Haskell> quickCheck prop_listLastNotNull 
++++ OK, passed 100 tests.
+
+2- Appending the list withouth the last element to the list containing the last element should equal the list.
+   So, if the list is [1,2,3], this property means that [1,2] ++ [3] == [1,2,3]. (++) is the list concatenation operator:
+
+-- Appending the list withouth the last element to the list containing the last element should equal the list.
+-- init [1,2,3] = [1,2]
+prop_listLastConcat xs = not (null xs) ==> (init xs) ++ [listLast xs] == xs
+
+Running QuickCheck we get:
+
+Haskell> quickCheck prop_listLastConcat 
++++ OK, passed 100 tests.
+
+3- The last element of a list is the first element of the reversed list
+
+prop_listLastFirstReverse xs = not (null xs) ==> listLast xs == head (reverse xs)
+
+Haskell> quickCheck prop_listLastFirstReverse 
++++ OK, passed 100 tests.
+
+Conclusion
+
+Property Based Testing is an important testing technique that allows us to specify invariants of the code and generate test cases to prove those invariants. QuickCheck allows for customization of the number of test cases generated and creating new generators for custom data types. Further information could be found in: http://book.realworldhaskell.org/read/testing-and-quality-assurance.html
+
+
