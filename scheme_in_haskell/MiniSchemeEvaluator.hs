@@ -12,6 +12,7 @@ evalExpr :: Expression -> EvalState -> EvalState
 evalExpr (List [Atom "quote", expr]) evalState = evalQuote expr evalState
 evalExpr (List [Atom "atom", expr]) evalState = evalIsAtom expr evalState
 evalExpr (List [Atom "eq", expr1, expr2]) evalState = evalEq expr1 expr2 evalState
+evalExpr (List [Atom "cons", expr1, expr2]) evalState = evalCons expr1 expr2 evalState
 evalExpr expr _ = error $ show expr 
 
 evalQuote :: Expression -> EvalState -> EvalState
@@ -29,10 +30,18 @@ evalEq (List [Atom "quote", Atom x]) (List [Atom "quote", Atom y]) (EvalState en
                                                                                        in EvalState env $ Bool eq
 evalEq (List [Atom "quote", List []]) (List [Atom "quote", List[]]) (EvalState env _) = EvalState env $ Bool True                                                                                          
 evalEq (List [Atom "quote", _]) (List [Atom "quote", _]) (EvalState env _) = EvalState env $ Bool False
-evalEq expr1 expr2 evalState = let evalState1@(EvalState _ expr1') = evalExpr expr1 evalState
-                                   evalState2@(EvalState _ expr2') = evalExpr expr2 evalState1
-                               in evalEq expr1' expr2' evalState2
+evalEq expr1 expr2 evalState = let (EvalState _ expr1') = evalExpr expr1 evalState
+                                   (EvalState _ expr2') = evalExpr expr2 evalState
+                               in evalEq expr1' expr2' evalState
                                    
+evalCons :: Expression -> Expression -> EvalState -> EvalState                                  
+evalCons (List [Atom "quote", Atom x]) (List [Atom "quote", List xs]) (EvalState env _) = let car = List [Atom "quote", List ((Atom x):xs)]
+                                                                                         in EvalState env car
+evalCons (List [Atom "quote", List _]) _ _ = error $ "'car' requires first argument to be an atom"
+evalCons _ (List [Atom "quote", Atom _]) _ = error $ "'car' requires second argument to be a list"
+evalCons expr1 expr2 evalState = let (EvalState _ expr1') = evalExpr expr1 evalState
+                                     (EvalState _ expr2') = evalExpr expr2 evalState
+                                 in evalCons expr1' expr2' evalState
 
 evalMiniScheme program = do (expr:exprs) <- parseMiniScheme program
                             return $ evalExpr expr (EvalState [] void)
