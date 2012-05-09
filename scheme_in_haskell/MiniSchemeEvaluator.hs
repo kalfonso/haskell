@@ -13,6 +13,7 @@ evalExpr (List [Atom "quote", expr]) evalState = evalQuote expr evalState
 evalExpr (List [Atom "atom", expr]) evalState = evalIsAtom expr evalState
 evalExpr (List [Atom "eq", expr1, expr2]) evalState = evalEq expr1 expr2 evalState
 evalExpr (List [Atom "cons", expr1, expr2]) evalState = evalCons expr1 expr2 evalState
+evalExpr (List [Atom "car", expr1]) evalState = evalCar expr1 evalState
 evalExpr expr _ = error $ show expr 
 
 evalQuote :: Expression -> EvalState -> EvalState
@@ -42,9 +43,21 @@ evalCons _ (List [Atom "quote", Atom _]) _ = error $ "'car' requires second argu
 evalCons expr1 expr2 evalState = let (EvalState _ expr1') = evalExpr expr1 evalState
                                      (EvalState _ expr2') = evalExpr expr2 evalState
                                  in evalCons expr1' expr2' evalState
+                                    
+evalCar :: Expression -> EvalState -> EvalState                                    
+evalCar (List [Atom "quote", List xs]) (EvalState env _) = EvalState env $ head xs
+evalCar (List [Atom "quote", _]) _ = error "'car' requires a list argument"
+evalCar expr1 evalState = let evalState' = evalExpr expr1 evalState
+                          in evalCar (getExpr evalState') evalState'
 
 evalMiniScheme program = do (expr:exprs) <- parseMiniScheme program
                             return $ evalExpr expr (EvalState [] void)
                             
 void :: Expression                           
 void = List []
+
+getExpr :: EvalState -> Expression
+getExpr (EvalState _ expr) = expr
+
+getEnv :: EvalState -> Environment
+getEnv (EvalState env _) = env
