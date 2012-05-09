@@ -45,7 +45,8 @@ evalCons expr1 expr2 evalState = let (EvalState _ expr1') = evalExpr expr1 evalS
                                  in evalCons expr1' expr2' evalState
                                     
 evalCar :: Expression -> EvalState -> EvalState                                    
-evalCar (List [Atom "quote", List xs]) (EvalState env _) = EvalState env $ head xs
+evalCar (List [Atom "quote", List xs]) (EvalState env _) = let car = List [Atom "quote",head xs]
+                                                           in EvalState env car
 evalCar (List [Atom "quote", _]) _ = error "'car' requires a list argument"
 evalCar expr1 evalState = let evalState' = evalExpr expr1 evalState
                           in evalCar (getExpr evalState') evalState'
