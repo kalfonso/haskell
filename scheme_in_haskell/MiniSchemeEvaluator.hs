@@ -14,6 +14,7 @@ evalExpr (List [Atom "atom", expr]) evalState = evalIsAtom expr evalState
 evalExpr (List [Atom "eq", expr1, expr2]) evalState = evalEq expr1 expr2 evalState
 evalExpr (List [Atom "cons", expr1, expr2]) evalState = evalCons expr1 expr2 evalState
 evalExpr (List [Atom "car", expr1]) evalState = evalCar expr1 evalState
+evalExpr (List [Atom "cdr", expr1]) evalState = evalCdr expr1 evalState
 evalExpr expr _ = error $ show expr 
 
 evalQuote :: Expression -> EvalState -> EvalState
@@ -45,11 +46,18 @@ evalCons expr1 expr2 evalState = let (EvalState _ expr1') = evalExpr expr1 evalS
                                  in evalCons expr1' expr2' evalState
                                     
 evalCar :: Expression -> EvalState -> EvalState                                    
-evalCar (List [Atom "quote", List xs]) (EvalState env _) = let car = List [Atom "quote",head xs]
+evalCar (List [Atom "quote", List xs]) (EvalState env _) = let car = quoteList $ [head xs]
                                                            in EvalState env car
 evalCar (List [Atom "quote", _]) _ = error "'car' requires a list argument"
 evalCar expr1 evalState = let evalState' = evalExpr expr1 evalState
                           in evalCar (getExpr evalState') evalState'
+                             
+evalCdr :: Expression -> EvalState -> EvalState                             
+evalCdr (List [Atom "quote", List xs]) (EvalState env _) = let cdr = quoteList $ tail xs
+                                                           in EvalState env cdr 
+evalCdr (List [Atom "quote", _]) _ = error "'cdr' requires a list argument"
+evalCdr expr1 evalState = let evalState' = evalExpr expr1 evalState
+                          in evalCdr (getExpr evalState') evalState'
 
 evalMiniScheme program = do (expr:exprs) <- parseMiniScheme program
                             return $ evalExpr expr (EvalState [] void)
@@ -62,3 +70,6 @@ getExpr (EvalState _ expr) = expr
 
 getEnv :: EvalState -> Environment
 getEnv (EvalState env _) = env
+
+quoteList :: [Expression] -> Expression
+quoteList exprs = List ((Atom "quote"):exprs)
