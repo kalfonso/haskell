@@ -11,7 +11,7 @@ data Expression = Atom String
                 | Bool Bool
                 | Int Int
                 | List [Expression] deriving (Eq,Show) 
-                                     
+                                             
 type Program = [Expression]
 
 parseProgram :: Parser Program

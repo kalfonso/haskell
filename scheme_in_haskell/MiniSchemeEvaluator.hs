@@ -15,6 +15,7 @@ evalExpr (List [Atom "eq", expr1, expr2]) evalState = evalEq expr1 expr2 evalSta
 evalExpr (List [Atom "cons", expr1, expr2]) evalState = evalCons expr1 expr2 evalState
 evalExpr (List [Atom "car", expr1]) evalState = evalCar expr1 evalState
 evalExpr (List [Atom "cdr", expr1]) evalState = evalCdr expr1 evalState
+evalExpr (List ((Atom "cond"):predicates)) evalState = evalCond predicates evalState
 evalExpr expr _ = error $ show expr 
 
 evalQuote :: Expression -> EvalState -> EvalState
@@ -58,6 +59,12 @@ evalCdr (List [Atom "quote", List xs]) (EvalState env _) = let cdr = quoteList $
 evalCdr (List [Atom "quote", _]) _ = error "'cdr' requires a list argument"
 evalCdr expr1 evalState = let evalState' = evalExpr expr1 evalState
                           in evalCdr (getExpr evalState') evalState'
+                             
+evalCond :: [Expression] -> EvalState -> EvalState                            
+evalCond [] _ = error "Wrong 'cond' expression. One of the predicates must evaluate to '#t'"
+evalCond ((List [predicate, resultExpr]):condExprs) evalState = case evalExpr predicate evalState of
+                                                                  (EvalState _ (Bool True)) -> evalExpr resultExpr evalState
+                                                                  _ -> evalCond condExprs evalState
 
 evalMiniScheme program = do (expr:exprs) <- parseMiniScheme program
                             return $ evalExpr expr (EvalState [] void)
