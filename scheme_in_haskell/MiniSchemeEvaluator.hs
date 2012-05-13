@@ -9,6 +9,7 @@ type Environment = [(Name,Expression)]
 data EvalState = EvalState Environment Expression deriving Show
 
 evalExpr :: Expression -> EvalState -> EvalState
+evalExpr (Atom x) (EvalState env _) = evalAtom x env
 evalExpr (List [Atom "quote", expr]) evalState = evalQuote expr evalState
 evalExpr (List [Atom "atom", expr]) evalState = evalIsAtom expr evalState
 evalExpr (List [Atom "eq", expr1, expr2]) evalState = evalEq expr1 expr2 evalState
@@ -16,10 +17,17 @@ evalExpr (List [Atom "cons", expr1, expr2]) evalState = evalCons expr1 expr2 eva
 evalExpr (List [Atom "car", expr1]) evalState = evalCar expr1 evalState
 evalExpr (List [Atom "cdr", expr1]) evalState = evalCdr expr1 evalState
 evalExpr (List ((Atom "cond"):predicates)) evalState = evalCond predicates evalState
+evalExpr (List ((List [Atom "lambda", List params, bodyExpr]):args)) evalState = evalLambda params bodyExpr args evalState
+evalExpr (List ((Atom "quote"):(List [Atom "lambda", List params, bodyExpr]):args)) evalState = evalLambda params bodyExpr args evalState
+evalExpr (List ((Atom functionName):args)) evalState = evalFunction functionName args evalState
 evalExpr expr _ = error $ show expr 
 
+evalAtom :: String -> Environment -> EvalState
+evalAtom x env = EvalState env $ lookupEnv x env
+
 evalQuote :: Expression -> EvalState -> EvalState
-evalQuote expr (EvalState env _) = EvalState env expr
+evalQuote expr (EvalState env _) = let quotedExpr = quoteList [expr]
+                                   in EvalState env quotedExpr
 
 evalIsAtom :: Expression -> EvalState -> EvalState
 evalIsAtom (List [Atom "quote",Atom _]) (EvalState env _) = EvalState env $ Bool True
@@ -65,10 +73,25 @@ evalCond [] _ = error "Wrong 'cond' expression. One of the predicates must evalu
 evalCond ((List [predicate, resultExpr]):condExprs) evalState = case evalExpr predicate evalState of
                                                                   (EvalState _ (Bool True)) -> evalExpr resultExpr evalState
                                                                   _ -> evalCond condExprs evalState
+                                                                  
+evalLambda :: [Expression] -> Expression -> [Expression] -> EvalState -> EvalState
+evalLambda params bodyExpr args evalState@(EvalState env _) = let argsExprs = map (getExpr . (\arg -> evalExpr arg evalState)) args
+                                                                  env' = env ++ (buildEnv params argsExprs)
+                                                              in evalExpr bodyExpr (EvalState env' void) 
+                                                                 
+evalFunction :: String -> [Expression] -> EvalState -> EvalState                                                                 
+evalFunction functionName args evalState@(EvalState env _) = let (List lambdaExpr) = lookupEnv functionName env
+                                                                 lambdaApplic = List (lambdaExpr ++ args)
+                                                             in evalExpr lambdaApplic evalState
 
 evalMiniScheme program = do (expr:exprs) <- parseMiniScheme program
                             return $ evalExpr expr (EvalState [] void)
                             
+lookupEnv :: String -> Environment -> Expression                            
+lookupEnv var [] = error $ "Variable not defined: " ++ var 
+lookupEnv var ((var',expr):entries) | var == var' = expr
+                                    | otherwise = lookupEnv var entries
+                                                  
 void :: Expression                           
 void = List []
 
@@ -80,3 +103,7 @@ getEnv (EvalState env _) = env
 
 quoteList :: [Expression] -> Expression
 quoteList exprs = List ((Atom "quote"):exprs)
+
+buildEnv :: [Expression] -> [Expression] -> Environment
+buildEnv [] [] = []
+buildEnv ((Atom param):params) (expr:exprs) = ((param, expr) : (buildEnv params exprs))
