@@ -77,12 +77,14 @@ evalCond ((List [predicate, resultExpr]):condExprs) evalState = case evalExpr pr
 evalLambda :: [Expression] -> Expression -> [Expression] -> EvalState -> EvalState
 evalLambda params bodyExpr args evalState@(EvalState env _) = let argsExprs = map (getExpr . (\arg -> evalExpr arg evalState)) args
                                                                   env' = env ++ (buildEnv params argsExprs)
-                                                              in evalExpr bodyExpr (EvalState env' void) 
+                                                                  (EvalState _ expr) = evalExpr bodyExpr (EvalState env' void) 
+                                                              in  (EvalState env expr)
                                                                  
 evalFunction :: String -> [Expression] -> EvalState -> EvalState                                                                 
 evalFunction functionName args evalState@(EvalState env _) = let (List lambdaExpr) = lookupEnv functionName env
                                                                  lambdaApplic = List (lambdaExpr ++ args)
-                                                             in evalExpr lambdaApplic evalState
+                                                                 (EvalState _ expr) = evalExpr lambdaApplic evalState
+                                                             in  (EvalState env expr)
 
 evalMiniScheme program = do (expr:exprs) <- parseMiniScheme program
                             return $ evalExpr expr (EvalState [] void)
