@@ -16,8 +16,8 @@ evalExpr (List [Atom "atom", expr]) = evalIsAtom expr
 evalExpr (List [Atom "set", Atom var, value]) = state $ \env -> (voidExpr, ((var, value):env))
 evalExpr (List [Atom "eq", expr1, expr2]) = evalEq expr1 expr2
 evalExpr (List [Atom "cons", expr1, expr2]) = evalCons expr1 expr2
-{--evalExpr (List [Atom "car", expr1]) evalState = evalCar expr1 evalState
-evalExpr (List [Atom "cdr", expr1]) evalState = evalCdr expr1 evalState
+evalExpr (List [Atom "car", expr1]) = evalCar expr1
+{--evalExpr (List [Atom "cdr", expr1]) evalState = evalCdr expr1 evalState
 evalExpr (List ((Atom "cond"):predicates)) evalState = evalCond predicates evalState
 evalExpr (List ((List [Atom "lambda", List params, bodyExpr]):args)) evalState = evalLambda params bodyExpr args evalState
 evalExpr (List ((Atom "quote"):(List [Atom "lambda", List params, bodyExpr]):args)) evalState = evalLambda params bodyExpr args evalState
@@ -58,14 +58,13 @@ evalCons expr1 expr2 = do expr1' <- evalExpr expr1
                           expr2' <- evalExpr expr2
                           evalCons expr1' expr2'
                                     
-{--evalCar :: Expression -> EvalState -> EvalState                                    
-evalCar (List [Atom "quote", List xs]) (EvalState env _) = let car = quoteList $ [head xs]
-                                                           in EvalState env car
-evalCar (List [Atom "quote", _]) _ = error "'car' requires a list argument"
-evalCar expr1 evalState = let evalState' = evalExpr expr1 evalState
-                          in evalCar (getExpr evalState') evalState'
+evalCar :: Expression -> EvalState
+evalCar (List [Atom "quote", List xs]) = return $ quoteList $ [head xs]
+evalCar (List [Atom "quote", _]) = error "'car' requires a list argument"
+evalCar expr = do expr' <- evalExpr expr
+                  evalCar expr'
                              
-evalCdr :: Expression -> EvalState -> EvalState                             
+{--evalCdr :: Expression -> EvalState -> EvalState                             
 evalCdr (List [Atom "quote", List xs]) (EvalState env _) = let cdr = quoteList $ tail xs
                                                            in EvalState env cdr 
 evalCdr (List [Atom "quote", _]) _ = error "'cdr' requires a list argument"
