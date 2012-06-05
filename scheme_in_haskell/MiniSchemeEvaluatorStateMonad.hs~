@@ -1,16 +1,15 @@
 module MiniSchemeEvaluator (evalMiniScheme) where
 
 import MiniSchemeParser
-import Contro.Monad.State
 
 type Name = String
 
 type Environment = [(Name,Expression)]
 
-type EvalState = State Environment Expression
+data EvalState = EvalState Environment Expression deriving Show
 
 evalExpr :: Expression -> EvalState -> EvalState
-evalExpr (Atom x) evalState = evalAtom x evalState
+evalExpr (Atom x) (EvalState env _) = evalAtom x env
 evalExpr (List [Atom "quote", expr]) evalState = evalQuote expr evalState
 evalExpr (List [Atom "atom", expr]) evalState = evalIsAtom expr evalState
 evalExpr (List [Atom "eq", expr1, expr2]) evalState = evalEq expr1 expr2 evalState
@@ -23,9 +22,8 @@ evalExpr (List ((Atom "quote"):(List [Atom "lambda", List params, bodyExpr]):arg
 evalExpr (List ((Atom functionName):args)) evalState = evalFunction functionName args evalState
 evalExpr expr _ = error $ show expr 
 
-evalAtom :: String -> EvalState -> EvalState
-evalAtom x evalState = do env <- get
-                          state $ \_ -> (lookupEnv x env, env)
+evalAtom :: String -> Environment -> EvalState
+evalAtom x env = EvalState env $ lookupEnv x env
 
 evalQuote :: Expression -> EvalState -> EvalState
 evalQuote expr (EvalState env _) = let quotedExpr = quoteList [expr]
@@ -91,9 +89,6 @@ evalFunction functionName args evalState@(EvalState env _) = let (List lambdaExp
 evalMiniScheme program = do (expr:exprs) <- parseMiniScheme program
                             return $ evalExpr expr (EvalState [] void)
                             
-evalMiniScheme' program = do exprs <- parseMiniScheme program                            
-                             foldM evalExpr initialState exprs
-                            
 lookupEnv :: String -> Environment -> Expression                            
 lookupEnv var [] = error $ "Variable not defined: " ++ var 
 lookupEnv var ((var',expr):entries) | var == var' = expr
@@ -102,8 +97,11 @@ lookupEnv var ((var',expr):entries) | var == var' = expr
 void :: Expression                           
 void = List []
 
-initialState :: State Environment Expression
-initialState = state $ \_ -> (void, [])
+getExpr :: EvalState -> Expression
+getExpr (EvalState _ expr) = expr
+
+getEnv :: EvalState -> Environment
+getEnv (EvalState env _) = env
 
 quoteList :: [Expression] -> Expression
 quoteList exprs = List ((Atom "quote"):exprs)

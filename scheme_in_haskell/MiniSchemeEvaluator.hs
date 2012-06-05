@@ -1,60 +1,64 @@
-module MiniSchemeEvaluator (evalMiniScheme) where
+module MiniSchemeEvaluator (evalMiniScheme') where
 
 import MiniSchemeParser
+import Control.Monad.State
 
 type Name = String
 
 type Environment = [(Name,Expression)]
 
-data EvalState = EvalState Environment Expression deriving Show
+type EvalState = State Environment Expression
 
-evalExpr :: Expression -> EvalState -> EvalState
-evalExpr (Atom x) (EvalState env _) = evalAtom x env
-evalExpr (List [Atom "quote", expr]) evalState = evalQuote expr evalState
-evalExpr (List [Atom "atom", expr]) evalState = evalIsAtom expr evalState
-evalExpr (List [Atom "eq", expr1, expr2]) evalState = evalEq expr1 expr2 evalState
-evalExpr (List [Atom "cons", expr1, expr2]) evalState = evalCons expr1 expr2 evalState
-evalExpr (List [Atom "car", expr1]) evalState = evalCar expr1 evalState
+evalExpr :: Expression -> EvalState
+evalExpr (Atom x) = evalAtom x
+evalExpr (List [Atom "quote", expr]) = evalQuote expr
+evalExpr (List [Atom "atom", expr]) = evalIsAtom expr
+evalExpr (List [Atom "set", Atom var, value]) = state $ \env -> (voidExpr, ((var, value):env))
+evalExpr (List [Atom "eq", expr1, expr2]) = evalEq expr1 expr2
+evalExpr (List [Atom "cons", expr1, expr2]) = evalCons expr1 expr2
+{--evalExpr (List [Atom "car", expr1]) evalState = evalCar expr1 evalState
 evalExpr (List [Atom "cdr", expr1]) evalState = evalCdr expr1 evalState
 evalExpr (List ((Atom "cond"):predicates)) evalState = evalCond predicates evalState
 evalExpr (List ((List [Atom "lambda", List params, bodyExpr]):args)) evalState = evalLambda params bodyExpr args evalState
 evalExpr (List ((Atom "quote"):(List [Atom "lambda", List params, bodyExpr]):args)) evalState = evalLambda params bodyExpr args evalState
-evalExpr (List ((Atom functionName):args)) evalState = evalFunction functionName args evalState
-evalExpr expr _ = error $ show expr 
+evalExpr (List ((Atom functionName):args)) evalState = evalFunction functionName args evalState --}
+evalExpr expr = error $ show expr 
 
-evalAtom :: String -> Environment -> EvalState
-evalAtom x env = EvalState env $ lookupEnv x env
+evalAtom :: String -> EvalState
+evalAtom x = do env <- get
+                return $ lookupEnv x env
 
-evalQuote :: Expression -> EvalState -> EvalState
-evalQuote expr (EvalState env _) = let quotedExpr = quoteList [expr]
-                                   in EvalState env quotedExpr
+evalQuote :: Expression -> EvalState
+evalQuote expr = state $ \env -> let quotedExpr = quoteList [expr]
+                                 in (quotedExpr, env)
 
-evalIsAtom :: Expression -> EvalState -> EvalState
-evalIsAtom (List [Atom "quote",Atom _]) (EvalState env _) = EvalState env $ Bool True
-evalIsAtom (List [Atom "quote",Bool _]) (EvalState env _) = EvalState env $ Bool True
-evalIsAtom (List [Atom "quote",Int _]) (EvalState env _) = EvalState env $ Bool True
-evalIsAtom (List [Atom "quote",_]) (EvalState env _) = EvalState env $ Bool False
-evalIsAtom expr evalState = evalExpr expr evalState
+evalIsAtom :: Expression -> EvalState
+evalIsAtom (List [Atom "quote",Atom _]) = return $ Bool True
+evalIsAtom (List [Atom "quote",Bool _]) = return $ Bool True
+evalIsAtom (List [Atom "quote",Int _]) = return $ Bool True
+evalIsAtom (List [Atom "quote",_]) = return $ Bool False
+evalIsAtom expr = do resultExpr <- evalExpr expr
+                     evalIsAtom resultExpr
 
-evalEq :: Expression -> Expression -> EvalState -> EvalState
-evalEq (List [Atom "quote", Atom x]) (List [Atom "quote", Atom y]) (EvalState env _) = let eq = x == y
-                                                                                       in EvalState env $ Bool eq
-evalEq (List [Atom "quote", List []]) (List [Atom "quote", List[]]) (EvalState env _) = EvalState env $ Bool True                                                                                          
-evalEq (List [Atom "quote", _]) (List [Atom "quote", _]) (EvalState env _) = EvalState env $ Bool False
-evalEq expr1 expr2 evalState = let (EvalState _ expr1') = evalExpr expr1 evalState
-                                   (EvalState _ expr2') = evalExpr expr2 evalState
-                               in evalEq expr1' expr2' evalState
+evalEq :: Expression -> Expression -> EvalState
+evalEq (List [Atom "quote", Atom x]) (List [Atom "quote", Atom y]) = return $ Bool $ x == y
+evalEq (List [Atom "quote", Int x]) (List [Atom "quote", Int y]) = return $ Bool $ x == y
+evalEq (List [Atom "quote", List []]) (List [Atom "quote", List[]]) = return $ Bool True                                                                                          
+evalEq (List [Atom "quote", _]) (List [Atom "quote", _]) = return $ Bool False
+evalEq expr1 expr2 = do expr1' <- evalExpr expr1
+                        expr2' <- evalExpr expr2                        
+                        evalEq expr1' expr2'
                                    
-evalCons :: Expression -> Expression -> EvalState -> EvalState                                  
-evalCons (List [Atom "quote", Atom x]) (List [Atom "quote", List xs]) (EvalState env _) = let car = List [Atom "quote", List ((Atom x):xs)]
-                                                                                         in EvalState env car
-evalCons (List [Atom "quote", List _]) _ _ = error $ "'car' requires first argument to be an atom"
-evalCons _ (List [Atom "quote", Atom _]) _ = error $ "'car' requires second argument to be a list"
-evalCons expr1 expr2 evalState = let (EvalState _ expr1') = evalExpr expr1 evalState
-                                     (EvalState _ expr2') = evalExpr expr2 evalState
-                                 in evalCons expr1' expr2' evalState
+evalCons :: Expression -> Expression -> EvalState
+evalCons (List [Atom "quote", Atom x]) (List [Atom "quote", List xs]) = return $ List [Atom "quote", List ((Atom x):xs)]
+evalCons (List [Atom "quote", Int x]) (List [Atom "quote", List xs]) = return $ List [Atom "quote", List ((Int x):xs)]
+evalCons (List [Atom "quote", List _]) _ = error $ "'car' requires first argument to be an atom"
+evalCons _ (List [Atom "quote", Atom _]) = error $ "'car' requires second argument to be a list"
+evalCons expr1 expr2 = do expr1' <- evalExpr expr1
+                          expr2' <- evalExpr expr2
+                          evalCons expr1' expr2'
                                     
-evalCar :: Expression -> EvalState -> EvalState                                    
+{--evalCar :: Expression -> EvalState -> EvalState                                    
 evalCar (List [Atom "quote", List xs]) (EvalState env _) = let car = quoteList $ [head xs]
                                                            in EvalState env car
 evalCar (List [Atom "quote", _]) _ = error "'car' requires a list argument"
@@ -88,24 +92,34 @@ evalFunction functionName args evalState@(EvalState env _) = let (List lambdaExp
 
 evalMiniScheme program = do (expr:exprs) <- parseMiniScheme program
                             return $ evalExpr expr (EvalState [] void)
+
+--}
                             
 lookupEnv :: String -> Environment -> Expression                            
 lookupEnv var [] = error $ "Variable not defined: " ++ var 
 lookupEnv var ((var',expr):entries) | var == var' = expr
                                     | otherwise = lookupEnv var entries
+                       
+initialState :: (Environment, Expression)
+initialState = ([], voidExpr)
+
+evalExpressions :: [Expression] -> State Environment Expression
+evalExpressions [expr] = evalExpr expr
+evalExpressions (expr:exprs) = do evalExpr expr
+                                  evalExpressions exprs
+                            
+evalMiniScheme' program = do exprs <- parseMiniScheme program                            
+                             return $ evalState (evalExpressions exprs) []
                                                   
-void :: Expression                           
-void = List []
-
-getExpr :: EvalState -> Expression
-getExpr (EvalState _ expr) = expr
-
-getEnv :: EvalState -> Environment
-getEnv (EvalState env _) = env
+voidExpr :: Expression                           
+voidExpr = List []
 
 quoteList :: [Expression] -> Expression
 quoteList exprs = List ((Atom "quote"):exprs)
 
+{--
 buildEnv :: [Expression] -> [Expression] -> Environment
 buildEnv [] [] = []
 buildEnv ((Atom param):params) (expr:exprs) = ((param, expr) : (buildEnv params exprs))
+
+--}
