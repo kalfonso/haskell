@@ -18,8 +18,8 @@ evalExpr (List [Atom "eq", expr1, expr2]) = evalEq expr1 expr2
 evalExpr (List [Atom "cons", expr1, expr2]) = evalCons expr1 expr2
 evalExpr (List [Atom "car", expr1]) = evalCar expr1
 evalExpr (List [Atom "cdr", expr1]) = evalCdr expr1
-{--evalExpr (List ((Atom "cond"):predicates)) evalState = evalCond predicates evalState
-evalExpr (List ((List [Atom "lambda", List params, bodyExpr]):args)) evalState = evalLambda params bodyExpr args evalState
+evalExpr (List ((Atom "cond"):predicates)) = evalCond predicates
+{--evalExpr (List ((List [Atom "lambda", List params, bodyExpr]):args)) evalState = evalLambda params bodyExpr args evalState
 evalExpr (List ((Atom "quote"):(List [Atom "lambda", List params, bodyExpr]):args)) evalState = evalLambda params bodyExpr args evalState
 evalExpr (List ((Atom functionName):args)) evalState = evalFunction functionName args evalState --}
 evalExpr expr = error $ show expr 
@@ -70,14 +70,14 @@ evalCdr (List [Atom "quote", _]) = error "'cdr' requires a list argument"
 evalCdr expr = do expr' <- evalExpr expr
                   evalCdr expr'
                              
-{--
-evalCond :: [Expression] -> EvalState -> EvalState                            
-evalCond [] _ = error "Wrong 'cond' expression. One of the predicates must evaluate to '#t'"
-evalCond ((List [predicate, resultExpr]):condExprs) evalState = case evalExpr predicate evalState of
-                                                                  (EvalState _ (Bool True)) -> evalExpr resultExpr evalState
-                                                                  _ -> evalCond condExprs evalState
+evalCond :: [Expression] -> EvalState
+evalCond [] = error "Wrong 'cond' expression. One of the predicates must evaluate to '#t'"
+evalCond ((List [predicate, resultExpr]):condExprs) = do expr <- evalExpr predicate
+                                                         case expr of
+                                                           Bool True -> evalExpr resultExpr
+                                                           _ -> evalCond condExprs
                                                                   
-evalLambda :: [Expression] -> Expression -> [Expression] -> EvalState -> EvalState
+{--evalLambda :: [Expression] -> Expression -> [Expression] -> EvalState -> EvalState
 evalLambda params bodyExpr args evalState@(EvalState env _) = let argsExprs = map (getExpr . (\arg -> evalExpr arg evalState)) args
                                                                   env' = env ++ (buildEnv params argsExprs)
                                                                   (EvalState _ expr) = evalExpr bodyExpr (EvalState env' void) 
