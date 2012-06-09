@@ -1,4 +1,4 @@
-module MiniSchemeEvaluator (evalMiniScheme') where
+module MiniSchemeEvaluator (evalMiniScheme) where
 
 import MiniSchemeParser
 import Control.Monad.State
@@ -20,8 +20,8 @@ evalExpr (List [Atom "car", expr1]) = evalCar expr1
 evalExpr (List [Atom "cdr", expr1]) = evalCdr expr1
 evalExpr (List ((Atom "cond"):predicates)) = evalCond predicates
 evalExpr (List ((List [Atom "lambda", List params, bodyExpr]):args)) = evalLambda params bodyExpr args
-{--evalExpr (List ((Atom "quote"):(List [Atom "lambda", List params, bodyExpr]):args)) evalState = evalLambda params bodyExpr args evalState
-evalExpr (List ((Atom functionName):args)) evalState = evalFunction functionName args evalState --}
+evalExpr (List ((Atom "quote"):(List [Atom "lambda", List params, bodyExpr]):args)) = evalLambda params bodyExpr args
+evalExpr (List ((Atom functionName):args)) = evalFunction functionName args
 evalExpr expr = error $ show expr 
 
 evalAtom :: String -> EvalState
@@ -29,8 +29,7 @@ evalAtom x = do env <- get
                 return $ lookupEnv x env
 
 evalQuote :: Expression -> EvalState
-evalQuote expr = state $ \env -> let quotedExpr = quoteList [expr]
-                                 in (quotedExpr, env)
+evalQuote expr = return $ quoteList [expr]
 
 evalIsAtom :: Expression -> EvalState
 evalIsAtom (List [Atom "quote",Atom _]) = return $ Bool True
@@ -82,18 +81,12 @@ evalLambda params bodyExpr args = do argsExprs <- mapM (\arg -> evalExpr arg) ar
                                      put $ buildEnv params argsExprs
                                      evalExpr bodyExpr
                                                                  
-{--
-evalFunction :: String -> [Expression] -> EvalState -> EvalState                                                                 
-evalFunction functionName args evalState@(EvalState env _) = let (List lambdaExpr) = lookupEnv functionName env
-                                                                 lambdaApplic = List (lambdaExpr ++ args)
-                                                                 (EvalState _ expr) = evalExpr lambdaApplic evalState
-                                                             in  (EvalState env expr)
+evalFunction :: String -> [Expression] -> EvalState                                                                 
+evalFunction functionName args = do env <- get
+                                    let (List lambdaExpr) = lookupEnv functionName env
+                                        lambdaApplic = List (lambdaExpr ++ args)
+                                    evalExpr lambdaApplic
 
-evalMiniScheme program = do (expr:exprs) <- parseMiniScheme program
-                            return $ evalExpr expr (EvalState [] void)
-
---}
-                            
 lookupEnv :: String -> Environment -> Expression                            
 lookupEnv var [] = error $ "Variable not defined: " ++ var 
 lookupEnv var ((var',expr):entries) | var == var' = expr
@@ -107,8 +100,8 @@ evalExpressions [expr] = evalExpr expr
 evalExpressions (expr:exprs) = do evalExpr expr
                                   evalExpressions exprs
                             
-evalMiniScheme' program = do exprs <- parseMiniScheme program                            
-                             return $ evalState (evalExpressions exprs) []
+evalMiniScheme program = do exprs <- parseMiniScheme program                            
+                            return $ evalState (evalExpressions exprs) []
                                                   
 voidExpr :: Expression                           
 voidExpr = List []
