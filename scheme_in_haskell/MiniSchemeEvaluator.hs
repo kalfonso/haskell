@@ -17,8 +17,8 @@ evalExpr (List [Atom "set", Atom var, value]) = state $ \env -> (voidExpr, ((var
 evalExpr (List [Atom "eq", expr1, expr2]) = evalEq expr1 expr2
 evalExpr (List [Atom "cons", expr1, expr2]) = evalCons expr1 expr2
 evalExpr (List [Atom "car", expr1]) = evalCar expr1
-{--evalExpr (List [Atom "cdr", expr1]) evalState = evalCdr expr1 evalState
-evalExpr (List ((Atom "cond"):predicates)) evalState = evalCond predicates evalState
+evalExpr (List [Atom "cdr", expr1]) = evalCdr expr1
+{--evalExpr (List ((Atom "cond"):predicates)) evalState = evalCond predicates evalState
 evalExpr (List ((List [Atom "lambda", List params, bodyExpr]):args)) evalState = evalLambda params bodyExpr args evalState
 evalExpr (List ((Atom "quote"):(List [Atom "lambda", List params, bodyExpr]):args)) evalState = evalLambda params bodyExpr args evalState
 evalExpr (List ((Atom functionName):args)) evalState = evalFunction functionName args evalState --}
@@ -64,13 +64,13 @@ evalCar (List [Atom "quote", _]) = error "'car' requires a list argument"
 evalCar expr = do expr' <- evalExpr expr
                   evalCar expr'
                              
-{--evalCdr :: Expression -> EvalState -> EvalState                             
-evalCdr (List [Atom "quote", List xs]) (EvalState env _) = let cdr = quoteList $ tail xs
-                                                           in EvalState env cdr 
-evalCdr (List [Atom "quote", _]) _ = error "'cdr' requires a list argument"
-evalCdr expr1 evalState = let evalState' = evalExpr expr1 evalState
-                          in evalCdr (getExpr evalState') evalState'
+evalCdr :: Expression -> EvalState
+evalCdr (List [Atom "quote", List xs]) = return $ quoteList $ tail xs
+evalCdr (List [Atom "quote", _]) = error "'cdr' requires a list argument"
+evalCdr expr = do expr' <- evalExpr expr
+                  evalCdr expr'
                              
+{--
 evalCond :: [Expression] -> EvalState -> EvalState                            
 evalCond [] _ = error "Wrong 'cond' expression. One of the predicates must evaluate to '#t'"
 evalCond ((List [predicate, resultExpr]):condExprs) evalState = case evalExpr predicate evalState of
