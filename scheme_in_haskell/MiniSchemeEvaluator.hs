@@ -19,8 +19,8 @@ evalExpr (List [Atom "cons", expr1, expr2]) = evalCons expr1 expr2
 evalExpr (List [Atom "car", expr1]) = evalCar expr1
 evalExpr (List [Atom "cdr", expr1]) = evalCdr expr1
 evalExpr (List ((Atom "cond"):predicates)) = evalCond predicates
-{--evalExpr (List ((List [Atom "lambda", List params, bodyExpr]):args)) evalState = evalLambda params bodyExpr args evalState
-evalExpr (List ((Atom "quote"):(List [Atom "lambda", List params, bodyExpr]):args)) evalState = evalLambda params bodyExpr args evalState
+evalExpr (List ((List [Atom "lambda", List params, bodyExpr]):args)) = evalLambda params bodyExpr args
+{--evalExpr (List ((Atom "quote"):(List [Atom "lambda", List params, bodyExpr]):args)) evalState = evalLambda params bodyExpr args evalState
 evalExpr (List ((Atom functionName):args)) evalState = evalFunction functionName args evalState --}
 evalExpr expr = error $ show expr 
 
@@ -77,12 +77,12 @@ evalCond ((List [predicate, resultExpr]):condExprs) = do expr <- evalExpr predic
                                                            Bool True -> evalExpr resultExpr
                                                            _ -> evalCond condExprs
                                                                   
-{--evalLambda :: [Expression] -> Expression -> [Expression] -> EvalState -> EvalState
-evalLambda params bodyExpr args evalState@(EvalState env _) = let argsExprs = map (getExpr . (\arg -> evalExpr arg evalState)) args
-                                                                  env' = env ++ (buildEnv params argsExprs)
-                                                                  (EvalState _ expr) = evalExpr bodyExpr (EvalState env' void) 
-                                                              in  (EvalState env expr)
+evalLambda :: [Expression] -> Expression -> [Expression] -> EvalState
+evalLambda params bodyExpr args = do argsExprs <- mapM (\arg -> evalExpr arg) args
+                                     put $ buildEnv params argsExprs
+                                     evalExpr bodyExpr
                                                                  
+{--
 evalFunction :: String -> [Expression] -> EvalState -> EvalState                                                                 
 evalFunction functionName args evalState@(EvalState env _) = let (List lambdaExpr) = lookupEnv functionName env
                                                                  lambdaApplic = List (lambdaExpr ++ args)
@@ -116,9 +116,6 @@ voidExpr = List []
 quoteList :: [Expression] -> Expression
 quoteList exprs = List ((Atom "quote"):exprs)
 
-{--
 buildEnv :: [Expression] -> [Expression] -> Environment
 buildEnv [] [] = []
 buildEnv ((Atom param):params) (expr:exprs) = ((param, expr) : (buildEnv params exprs))
-
---}
