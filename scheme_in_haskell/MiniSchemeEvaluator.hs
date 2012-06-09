@@ -13,7 +13,9 @@ evalExpr :: Expression -> EvalState
 evalExpr (Atom x) = evalAtom x
 evalExpr (List [Atom "quote", expr]) = evalQuote expr
 evalExpr (List [Atom "atom", expr]) = evalIsAtom expr
-evalExpr (List [Atom "set", Atom var, value]) = state $ \env -> (voidExpr, ((var, value):env))
+evalExpr (List [Atom "set", Atom var, value]) = do env <- get
+                                                   put ((var, value):env) 
+                                                   return voidExpr
 evalExpr (List [Atom "eq", expr1, expr2]) = evalEq expr1 expr2
 evalExpr (List [Atom "cons", expr1, expr2]) = evalCons expr1 expr2
 evalExpr (List [Atom "car", expr1]) = evalCar expr1
@@ -21,6 +23,7 @@ evalExpr (List [Atom "cdr", expr1]) = evalCdr expr1
 evalExpr (List ((Atom "cond"):predicates)) = evalCond predicates
 evalExpr (List ((List [Atom "lambda", List params, bodyExpr]):args)) = evalLambda params bodyExpr args
 evalExpr (List ((Atom "quote"):(List [Atom "lambda", List params, bodyExpr]):args)) = evalLambda params bodyExpr args
+evalExpr (List [Atom "defun", Atom name, lambdaExpr]) = evalDefun name lambdaExpr
 evalExpr (List ((Atom functionName):args)) = evalFunction functionName args
 evalExpr expr = error $ show expr 
 
@@ -86,6 +89,11 @@ evalFunction functionName args = do env <- get
                                     let (List lambdaExpr) = lookupEnv functionName env
                                         lambdaApplic = List (lambdaExpr ++ args)
                                     evalExpr lambdaApplic
+                                    
+evalDefun :: String -> Expression -> EvalState
+evalDefun name expr = do env <- get
+                         put $ ((name, List [expr]):env)
+                         return voidExpr
 
 lookupEnv :: String -> Environment -> Expression                            
 lookupEnv var [] = error $ "Variable not defined: " ++ var 
