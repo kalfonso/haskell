@@ -2,6 +2,7 @@ module MiniSchemeEvaluator (evalMiniScheme) where
 
 import MiniSchemeParser
 import Control.Monad.State
+import Text.Regex.Posix
 
 type Name = String
 
@@ -85,25 +86,31 @@ evalLambda params bodyExpr args = do argsExprs <- mapM (\arg -> evalExpr arg) ar
                                      evalExpr bodyExpr
                                                                  
 evalFunction :: String -> [Expression] -> EvalState                                                                 
-evalFunction functionName args = do env <- get
-                                    let (List lambdaExpr) = lookupEnv functionName env
-                                        lambdaApplic = List (lambdaExpr ++ args)
-                                    evalExpr lambdaApplic
+evalFunction functionName args | functionName =~ "^c(a|d)+r$" = evalCarPatterns functionName (head args)
+                               | otherwise = do env <- get
+                                                let (List lambdaExpr) = lookupEnv functionName env
+                                                    lambdaApplic = List (lambdaExpr ++ args)
+                                                evalExpr lambdaApplic
                                     
 evalDefun :: String -> Expression -> EvalState
 evalDefun name expr = do env <- get
                          put $ ((name, List [expr]):env)
                          return voidExpr
-
+                         
+evalCarPatterns (x:xs) arg = case x of
+                               'c' -> evalCarPatterns xs arg
+                               'r' -> return arg
+                               'a' -> do carArg <- evalCarPatterns xs arg
+                                         evalCar carArg
+                               'd' -> do cdrArg <- evalCarPatterns xs arg
+                                         evalCdr cdrArg
+                         
 lookupEnv :: String -> Environment -> Expression                            
 lookupEnv var [] = error $ "Variable not defined: " ++ var 
 lookupEnv var ((var',expr):entries) | var == var' = expr
                                     | otherwise = lookupEnv var entries
                        
-initialState :: (Environment, Expression)
-initialState = ([], voidExpr)
-
-evalExpressions :: [Expression] -> State Environment Expression
+evalExpressions :: [Expression] -> EvalState
 evalExpressions [expr] = evalExpr expr
 evalExpressions (expr:exprs) = do evalExpr expr
                                   evalExpressions exprs
@@ -115,7 +122,7 @@ voidExpr :: Expression
 voidExpr = List []
 
 quoteList :: [Expression] -> Expression
-quoteList exprs = List ((Atom "quote"):exprs)
+quoteList exprs = List [Atom "quote", List exprs]
 
 buildEnv :: [Expression] -> [Expression] -> Environment
 buildEnv [] [] = []
