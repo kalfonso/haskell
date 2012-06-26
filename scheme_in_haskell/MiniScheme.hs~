@@ -1,0 +1,7 @@
+module MiniScheme (eval) where
+
+import ParseMiniScheme
+import EvalMiniScheme
+
+evalMiniScheme program = do exprs <- parseMiniScheme program
+                            return $ evalState (evalExpressions exprs) []

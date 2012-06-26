@@ -1,4 +1,4 @@
-module MiniSchemeEvaluator (evalMiniScheme) where
+module MiniSchemeEvaluator (eval) where
 
 import MiniSchemeParser
 import Control.Monad.State
@@ -24,7 +24,7 @@ evalExpr (List [Atom "cdr", expr1]) = evalCdr expr1
 evalExpr (List ((Atom "cond"):predicates)) = evalCond predicates
 evalExpr (List ((List [Atom "lambda", List params, bodyExpr]):args)) = evalLambda params bodyExpr args
 evalExpr (List ((Atom "quote"):(List [Atom "lambda", List params, bodyExpr]):args)) = evalLambda params bodyExpr args
-evalExpr (List [Atom "defun", Atom name, lambdaExpr]) = evalDefun name lambdaExpr
+evalExpr (List [Atom "defun", Atom name, args, body]) = evalDefun name args body
 evalExpr (List ((Atom functionName):args)) = evalFunction functionName args
 evalExpr expr = error $ show expr 
 
@@ -46,6 +46,8 @@ evalIsAtom expr = do resultExpr <- evalExpr expr
 evalEq :: Expression -> Expression -> EvalState
 evalEq (List [Atom "quote", Atom x]) (List [Atom "quote", Atom y]) = return $ Bool $ x == y
 evalEq (List [Atom "quote", Int x]) (List [Atom "quote", Int y]) = return $ Bool $ x == y
+evalEq (List [Atom "quote", Bool x]) (List [Atom "quote", Bool y]) = return $ Bool $ x == y
+evalEq (List [Atom "quote", String x]) (List [Atom "quote", String y]) = return $ Bool $ x == y
 evalEq (List [Atom "quote", List []]) (List [Atom "quote", List[]]) = return $ Bool True                                                                                          
 evalEq (List [Atom "quote", _]) (List [Atom "quote", _]) = return $ Bool False
 evalEq expr1 expr2 = do expr1' <- evalExpr expr1
@@ -85,17 +87,19 @@ evalLambda params bodyExpr args = do argsExprs <- mapM (\arg -> evalExpr arg) ar
                                      put $ buildEnv params argsExprs
                                      evalExpr bodyExpr
                                                                  
+evalDefun :: String -> Expression -> Expression -> EvalState
+evalDefun name args body = do env <- get
+                              let lambdaExpr = List [Atom "lambda", args, body]
+                              put $ ((name, lambdaExpr):env)
+                              return voidExpr
+
 evalFunction :: String -> [Expression] -> EvalState                                                                 
 evalFunction functionName args | functionName =~ "^c(a|d)+r$" = evalCarPatterns functionName (head args)
                                | otherwise = do env <- get
-                                                let (List lambdaExpr) = lookupEnv functionName env
-                                                    lambdaApplic = List (lambdaExpr ++ args)
+                                                let lambdaExpr = lookupEnv functionName env
+                                                    lambdaApplic = List (lambdaExpr:args)
                                                 evalExpr lambdaApplic
                                     
-evalDefun :: String -> Expression -> EvalState
-evalDefun name expr = do env <- get
-                         put $ ((name, List [expr]):env)
-                         return voidExpr
                          
 evalCarPatterns (x:xs) arg = case x of
                                'c' -> evalCarPatterns xs arg
@@ -106,7 +110,7 @@ evalCarPatterns (x:xs) arg = case x of
                                          evalCdr cdrArg
                          
 lookupEnv :: String -> Environment -> Expression                            
-lookupEnv var [] = error $ "Variable not defined: " ++ var 
+lookupEnv var [] = error $ "Variable or function not defined: " ++ var 
 lookupEnv var ((var',expr):entries) | var == var' = expr
                                     | otherwise = lookupEnv var entries
                        
@@ -114,15 +118,15 @@ evalExpressions :: [Expression] -> EvalState
 evalExpressions [expr] = evalExpr expr
 evalExpressions (expr:exprs) = do evalExpr expr
                                   evalExpressions exprs
+                                  
+eval program = do exprs <- parseMiniScheme program                                  
+                  return $ evalState (evalExpressions exprs) []
                             
-evalMiniScheme program = do exprs <- parseMiniScheme program                            
-                            return $ evalState (evalExpressions exprs) []
-                                                  
 voidExpr :: Expression                           
 voidExpr = List []
 
 quoteList :: [Expression] -> Expression
-quoteList exprs = List [Atom "quote", List exprs]
+quoteList exprs = List ((Atom "quote"):exprs)
 
 buildEnv :: [Expression] -> [Expression] -> Environment
 buildEnv [] [] = []

@@ -15,7 +15,7 @@ data Expression = Atom String
 type Program = [Expression]
 
 parseProgram :: Parser Program
-parseProgram = sepBy parseExpr spaces
+parseProgram = endBy parseExpr spaces
 
 parseExpr :: Parser Expression
 parseExpr = parseString

@@ -11,12 +11,8 @@ data Expression = Atom String
                 | Bool Bool
                 | Int Int
                 | List [Expression] deriving (Eq,Show) 
-                                     
+                                             
 type Program = [Expression]
-
-type Name = String      
-
-type Environment = [(Name, Expression)]
 
 parseProgram :: Parser Program
 parseProgram = sepBy parseExpr spaces
@@ -59,6 +55,7 @@ parseSExpression = do char '('
                       
 parseQuoted :: Parser Expression
 parseQuoted = do char '\''
-                 parseExpr
+                 expr <- parseExpr
+                 return $ List ((Atom "quote"):expr:[])
 
 parseMiniScheme = parse parseProgram ""
