@@ -11,6 +11,9 @@ type Environment = [(Name,Expression)]
 type EvalState = State Environment Expression
 
 evalExpr :: Expression -> EvalState
+evalExpr (String s) = return (String s)
+evalExpr (Int i) = return (Int i)
+evalExpr (Bool b) = return (Bool b)
 evalExpr (Atom x) = evalAtom x
 evalExpr (List [Atom "quote", expr]) = evalQuote expr
 evalExpr (List [Atom "atom", expr]) = evalIsAtom expr
@@ -33,7 +36,7 @@ evalAtom x = do env <- get
                 return $ lookupEnv x env
 
 evalQuote :: Expression -> EvalState
-evalQuote expr = return $ quoteList [expr]
+evalQuote = return . quoteExpr
 
 evalIsAtom :: Expression -> EvalState
 evalIsAtom (List [Atom "quote",Atom _]) = return $ Bool True
@@ -57,14 +60,14 @@ evalEq expr1 expr2 = do expr1' <- evalExpr expr1
 evalCons :: Expression -> Expression -> EvalState
 evalCons (List [Atom "quote", Atom x]) (List [Atom "quote", List xs]) = return $ List [Atom "quote", List ((Atom x):xs)]
 evalCons (List [Atom "quote", Int x]) (List [Atom "quote", List xs]) = return $ List [Atom "quote", List ((Int x):xs)]
-evalCons (List [Atom "quote", List _]) _ = error $ "'car' requires first argument to be an atom"
-evalCons _ (List [Atom "quote", Atom _]) = error $ "'car' requires second argument to be a list"
+evalCons arg@(List [Atom "quote", List _]) _ = error $ "'cons' requires first argument to be an atom: " ++ (show arg) 
+evalCons _ (List [Atom "quote", Atom _]) = error $ "'cons' requires second argument to be a list"
 evalCons expr1 expr2 = do expr1' <- evalExpr expr1
                           expr2' <- evalExpr expr2
                           evalCons expr1' expr2'
-                                    
+
 evalCar :: Expression -> EvalState
-evalCar (List [Atom "quote", List xs]) = return $ quoteList $ [head xs]
+evalCar (List [Atom "quote", List xs]) = return $ quoteExpr $ head xs
 evalCar (List [Atom "quote", _]) = error "'car' requires a list argument"
 evalCar expr = do expr' <- evalExpr expr
                   evalCar expr'
@@ -83,9 +86,12 @@ evalCond ((List [predicate, resultExpr]):condExprs) = do expr <- evalExpr predic
                                                            _ -> evalCond condExprs
                                                                   
 evalLambda :: [Expression] -> Expression -> [Expression] -> EvalState
-evalLambda params bodyExpr args = do argsExprs <- mapM (\arg -> evalExpr arg) args
-                                     put $ buildEnv params argsExprs
-                                     evalExpr bodyExpr
+evalLambda params bodyExpr args = do env <- get
+                                     argsExprs <- mapM (\arg -> evalExpr arg) args
+                                     put $ (buildEnv params argsExprs) ++ env -- Append arguments to the environment before evaluating lambda expression
+                                     result <- evalExpr bodyExpr
+                                     put env -- Restore initial environment passed to the lambda expression 
+                                     return result
                                                                  
 evalDefun :: String -> Expression -> Expression -> EvalState
 evalDefun name args body = do env <- get
@@ -97,9 +103,8 @@ evalFunction :: String -> [Expression] -> EvalState
 evalFunction functionName args | functionName =~ "^c(a|d)+r$" = evalCarPatterns functionName (head args)
                                | otherwise = do env <- get
                                                 let lambdaExpr = lookupEnv functionName env
-                                                    lambdaApplic = List (lambdaExpr:args)
+                                                    lambdaApplic = List (lambdaExpr:args) 
                                                 evalExpr lambdaApplic
-                                    
                          
 evalCarPatterns (x:xs) arg = case x of
                                'c' -> evalCarPatterns xs arg
@@ -126,7 +131,10 @@ voidExpr :: Expression
 voidExpr = List []
 
 quoteList :: [Expression] -> Expression
-quoteList exprs = List ((Atom "quote"):exprs)
+quoteList exprs = List [Atom "quote", List exprs]
+
+quoteExpr :: Expression -> Expression
+quoteExpr expr = List [Atom "quote", expr]
 
 buildEnv :: [Expression] -> [Expression] -> Environment
 buildEnv [] [] = []

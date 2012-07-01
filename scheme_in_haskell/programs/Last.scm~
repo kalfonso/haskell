@@ -1,0 +1,3 @@
+(defun last (l)
+  (cond ((null l) '())
+	(#t (last (cdr l)))))
